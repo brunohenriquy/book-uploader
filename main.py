@@ -80,6 +80,7 @@ class ConfigManager:
             "SUBJECT": os.environ.get("SUBJECT", ""),
             "MESSAGE": os.environ.get("MESSAGE", ""),
             "DIRECTORY_PATH": "books",
+            "ALLOWED_EXTENSIONS": os.getenv('ALLOWED_EXTENSIONS').split(',')
         }
         return config
 
@@ -134,6 +135,7 @@ def send_book_emails_from_directory():
     subject = config["SUBJECT"]
     message = config["MESSAGE"]
     directory_path = config["DIRECTORY_PATH"]
+    allowed_extensions = config["ALLOWED_EXTENSIONS"]
 
     sent_books = ConfigManager.read_sent_books()
     failed_books = ConfigManager.read_failed_books()
@@ -150,7 +152,7 @@ def send_book_emails_from_directory():
     for book in book_list:
         file_path = os.path.join(directory_path, book)
 
-        if os.path.isfile(file_path) and book.lower().endswith(".epub"):
+        if os.path.isfile(file_path) and any(book.lower().endswith(f".{ext}") for ext in allowed_extensions):
             if book in sent_books:
                 print(f"{Fore.YELLOW}Book '{book}' has already been sent. Skipping...{Style.RESET_ALL}")
                 skipped_book_count += 1
