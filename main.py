@@ -6,7 +6,9 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from colorama import init, Fore
 
+init(autoreset=True)  # Initialize colorama
 
 class EmailService:
     def __init__(self, smtp_server, smtp_port, sender_email, sender_password):
@@ -21,10 +23,10 @@ class EmailService:
                 server.starttls()
                 server.login(self.sender_email, self.sender_password)
                 server.sendmail(self.sender_email, recipient_email, email_content)
-
+            return True
         except Exception as e:
-            print(f"Error sending email: {str(e)}")
-            raise e
+            print(f"{Fore.RED}Error sending email: {str(e)}")
+            return False
 
     def prepare_email_with_attachment(self, recipient_email, subject, message, attachment_path):
         msg = MIMEMultipart()
@@ -101,13 +103,16 @@ class ConfigManager:
     def save_failed_file(file_name):
         ConfigManager.save_file(ConfigManager.FAILED_FILES_FILE, file_name)
 
+
 def print_statistics(failed_files_count, sent_files_count, skipped_files_count):
-    print(f"Emails sent: {sent_files_count}")
-    print(f"Files skipped: {skipped_files_count}")
-    print(f"Files failed: {failed_files_count}")
+    print(f"{Fore.GREEN}Emails sent: {sent_files_count}")
+    print(f"{Fore.YELLOW}Files skipped: {skipped_files_count}")
+    print(f"{Fore.RED}Files failed: {failed_files_count}")
 
 
 def send_epub_emails_from_directory():
+    import pydevd_pycharm;
+    pydevd_pycharm.settrace('host.docker.internal', port=8787, stdoutToServer=True, stderrToServer=True)
     config = ConfigManager.read_config()
 
     smtp_server = config["smtp_server"]
@@ -136,23 +141,22 @@ def send_epub_emails_from_directory():
 
         if os.path.isfile(file_path) and file_name.lower().endswith(".epub"):
             if file_name in sent_files:
-                print(f"File '{file_name}' has already been sent. Skipping...")
+                print(f"{Fore.YELLOW}File '{file_name}' has already been sent. Skipping...")
                 skipped_files_count += 1
             elif file_name in failed_files:
-                print(f"File '{file_name}' has previously failed to send. Skipping...")
+                print(f"{Fore.YELLOW}File '{file_name}' has previously failed to send. Skipping...")
                 skipped_files_count += 1
             else:
-                print(f"Sending book: {file_name}")
+                print(f"{Fore.GREEN}Sending book: {file_name}")
                 email_content = email_service.prepare_email_with_attachment(recipient_email, subject, message, file_path)
 
-                try:
-                    email_service.send_email(recipient_email, email_content)
+                if email_service.send_email(recipient_email, email_content):
                     ConfigManager.save_sent_file(file_name)
                     sent_files_count += 1
                     processed_files_count = sent_files_count + skipped_files_count + failed_files_count
                     progress = processed_files_count / total_files * 100
-                    print(f"Progress: {progress:.2f}%")
-                except Exception as e:
+                    print(f"{Fore.GREEN}Progress: {progress:.2f}%")
+                else:
                     ConfigManager.save_failed_file(file_name)
                     failed_files_count += 1
 
