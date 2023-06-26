@@ -2,7 +2,8 @@
 
 The Book Uploader is a Python script that allows you to send Book files via email. This script provides two options for running the code: using a local Python installation or using Docker.
 
-It automates the process of sending Book files to a specified recipient via email for example to `Kindle` service. It reads the configuration from either a `config.json` file or environment variables, depending on the chosen method of execution. The script supports sending multiple Book files in a directory, skipping files that have already been sent, and keeping track of failed attempts.
+It automates the process of sending Book files to a specified recipient(`Kindle` service for example) via email. It reads the configuration from either a `config.json` file or environment variables, depending on the chosen method of execution.
+The script supports sending multiple Book files in a directory, skipping files that have already been sent, and keeping track of failed attempts.
 
 ## Prerequisites
 
@@ -75,7 +76,7 @@ To run the Book Uploader using Docker, follow these steps:
    - RECIPIENT_EMAIL=recipient-email@example.com
    - SUBJECT=Subject (optional)
    - MESSAGE=Message (optional)
-   - ALLOWED_EXTENSIONS=[".epub", ".pdf", ".mobi"]
+   - ALLOWED_EXTENSIONS=epub,pdf,mobi
    
 4. If your Book files are located in a specific directory on your host machine, update the volumes section under the app service in the docker-compose.yaml file. Replace /path/to/book/files with the absolute path to your Book files directory on your host machine:
 
