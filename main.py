@@ -1,13 +1,45 @@
 import os
 import smtplib
 import time
+from abc import ABC, abstractmethod
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
 
-SENT_FILES_FILE = "sent_files.txt"
-FAILED_FILES_FILE = "failed_files.txt"
+CONTROL_FILES_DIR = "control_files"
+SENT_FILES_FILE = f"{CONTROL_FILES_DIR}/sent_files.txt"
+FAILED_FILES_FILE = f"{CONTROL_FILES_DIR}/failed_files.txt"
+
+
+class EmailSender(ABC):
+    def __init__(self, sender_email, sender_password):
+        self.sender_email = sender_email
+        self.sender_password = sender_password
+
+    @abstractmethod
+    def send_email(self, recipient_email, email_content):
+        pass
+
+
+class GmailSender(EmailSender):
+    def __init__(self, sender_email, sender_password):
+        super().__init__(sender_email, sender_password)
+        self.smtp_server = "smtp.gmail.com"
+        self.smtp_port = 587
+
+    def send_email(self, recipient_email, email_content):
+        try:
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.sender_email, self.sender_password)
+                server.sendmail(self.sender_email, recipient_email, email_content)
+
+            return True
+        except Exception as e:
+            print(f"Error sending email: {str(e)}")
+            return False
+
 
 def prepare_email_with_attachment(sender_email, recipient_email, subject, message, attachment_path):
     msg = MIMEMultipart()
@@ -32,17 +64,6 @@ def prepare_email_with_attachment(sender_email, recipient_email, subject, messag
 
     return msg.as_string()
 
-def send_email_with_attachment(sender_email, sender_password, email_content, recipient_email):
-    try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, recipient_email, email_content)
-
-        return True
-    except Exception as e:
-        print(f"Error sending email: {str(e)}")
-        return False
 
 def read_sent_files():
     sent_files = set()
@@ -54,6 +75,7 @@ def read_sent_files():
 
     return sent_files
 
+
 def read_failed_files():
     failed_files = set()
 
@@ -64,13 +86,16 @@ def read_failed_files():
 
     return failed_files
 
+
 def save_sent_file(file_name):
     with open(SENT_FILES_FILE, "a") as file:
         file.write(file_name + "\n")
 
+
 def save_failed_file(file_name):
     with open(FAILED_FILES_FILE, "a") as file:
         file.write(file_name + "\n")
+
 
 def send_epub_emails_from_directory(directory_path, sender_email, sender_password, recipient_email, subject, message):
     sent_files = read_sent_files()
@@ -80,6 +105,8 @@ def send_epub_emails_from_directory(directory_path, sender_email, sender_passwor
     file_list = sorted(os.listdir(directory_path))
     total_files = len(file_list)
     files_sent = 0
+
+    email_sender = GmailSender(sender_email, sender_password)
 
     for file_name in file_list:
         file_path = os.path.join(directory_path, file_name)
@@ -93,8 +120,9 @@ def send_epub_emails_from_directory(directory_path, sender_email, sender_passwor
                 skipped_files += 1
             else:
                 print(f"Sending book: {file_name}")
-                email_content = prepare_email_with_attachment(sender_email, recipient_email, subject, message, file_path)
-                if send_email_with_attachment(sender_email, sender_password, email_content, recipient_email):
+                email_content = prepare_email_with_attachment(sender_email, recipient_email, subject, message,
+                                                              file_path)
+                if email_sender.send_email(recipient_email, email_content):
                     save_sent_file(file_name)
                     time.sleep(20)
                     files_sent += 1
