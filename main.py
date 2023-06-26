@@ -1,32 +1,23 @@
+import json
 import os
 import smtplib
 import time
-from abc import ABC, abstractmethod
+from abc import ABC
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-CONTROL_FILES_DIR = "control_files"
-SENT_FILES_FILE = f"{CONTROL_FILES_DIR}/sent_files.txt"
-FAILED_FILES_FILE = f"{CONTROL_FILES_DIR}/failed_files.txt"
+CONFIG_FILES_DIR = "config_files"
+SENT_FILES_FILE = f"{CONFIG_FILES_DIR}/sent_files.txt"
+FAILED_FILES_FILE = f"{CONFIG_FILES_DIR}/failed_files.txt"
+CONFIG_FILE = f"{CONFIG_FILES_DIR}/config.json"
 
 
-class EmailSender(ABC):
+class EmailService(ABC):
     def __init__(self, sender_email, sender_password):
         self.sender_email = sender_email
         self.sender_password = sender_password
-
-    @abstractmethod
-    def send_email(self, recipient_email, email_content):
-        pass
-
-
-class GmailSender(EmailSender):
-    def __init__(self, sender_email, sender_password):
-        super().__init__(sender_email, sender_password)
-        self.smtp_server = "smtp.gmail.com"
-        self.smtp_port = 587
 
     def send_email(self, recipient_email, email_content):
         try:
@@ -40,29 +31,37 @@ class GmailSender(EmailSender):
             print(f"Error sending email: {str(e)}")
             return False
 
+    def prepare_email_with_attachment(self, recipient_email, subject, message, attachment_path):
+        msg = MIMEMultipart()
+        msg["From"] = self.sender_email
+        msg["To"] = recipient_email
+        msg["Subject"] = subject
 
-def prepare_email_with_attachment(sender_email, recipient_email, subject, message, attachment_path):
-    msg = MIMEMultipart()
-    msg["From"] = sender_email
-    msg["To"] = recipient_email
-    msg["Subject"] = subject
+        msg.attach(MIMEText(message, "plain"))
 
-    msg.attach(MIMEText(message, "plain"))
+        with open(attachment_path, "rb") as attachment:
+            attachment_data = MIMEBase("application", "octet-stream")
+            attachment_data.set_payload(attachment.read())
 
-    with open(attachment_path, "rb") as attachment:
-        attachment_data = MIMEBase("application", "octet-stream")
-        attachment_data.set_payload(attachment.read())
+        encoders.encode_base64(attachment_data)
 
-    encoders.encode_base64(attachment_data)
+        attachment_data.add_header(
+            "Content-Disposition",
+            f"attachment; filename={os.path.basename(attachment_path)}",
+        )
 
-    attachment_data.add_header(
-        "Content-Disposition",
-        f"attachment; filename={os.path.basename(attachment_path)}",
-    )
+        msg.attach(attachment_data)
 
-    msg.attach(attachment_data)
+        email_content = msg.as_string()
 
-    return msg.as_string()
+        return email_content
+
+
+class GmailService(EmailService):
+    def __init__(self, sender_email, sender_password):
+        super().__init__(sender_email, sender_password)
+        self.smtp_server = "smtp.gmail.com"
+        self.smtp_port = 587
 
 
 def read_sent_files():
@@ -97,7 +96,7 @@ def save_failed_file(file_name):
         file.write(file_name + "\n")
 
 
-def send_epub_emails_from_directory(directory_path, sender_email, sender_password, recipient_email, subject, message):
+def send_epub_emails_from_directory(directory_path, email_service, recipient_email, subject, message):
     sent_files = read_sent_files()
     failed_files = read_failed_files()
     skipped_files = 0
@@ -105,8 +104,6 @@ def send_epub_emails_from_directory(directory_path, sender_email, sender_passwor
     file_list = sorted(os.listdir(directory_path))
     total_files = len(file_list)
     files_sent = 0
-
-    email_sender = GmailSender(sender_email, sender_password)
 
     for file_name in file_list:
         file_path = os.path.join(directory_path, file_name)
@@ -120,9 +117,9 @@ def send_epub_emails_from_directory(directory_path, sender_email, sender_passwor
                 skipped_files += 1
             else:
                 print(f"Sending book: {file_name}")
-                email_content = prepare_email_with_attachment(sender_email, recipient_email, subject, message,
-                                                              file_path)
-                if email_sender.send_email(recipient_email, email_content):
+                email_content = email_service.prepare_email_with_attachment(recipient_email, subject, message,
+                                                                            file_path)
+                if email_service.send_email(recipient_email, email_content):
                     save_sent_file(file_name)
                     time.sleep(20)
                     files_sent += 1
@@ -136,12 +133,22 @@ def send_epub_emails_from_directory(directory_path, sender_email, sender_passwor
     print(f"Files failed: {len(failed_files)}")
 
 
-if __name__ == '__main__':
-    sender_email = "your_email@gmail.com"
-    sender_password = "your_password"
-    recipient_email = "recipient_email@gmail.com"
-    subject = "Email with EPUB Attachment"
-    message = "Hello, please find the EPUB attachment."
-    directory_path = "/path/to/directory"
+def read_config():
+    with open(CONFIG_FILE, "r") as config_file:
+        config = json.load(config_file)
+    return config
 
-    send_epub_emails_from_directory(directory_path, sender_email, sender_password, recipient_email, subject, message)
+
+if __name__ == '__main__':
+    config = read_config()
+
+    sender_email = config["sender_email"]
+    sender_password = config["sender_password"]
+    recipient_email = config["recipient_email"]
+    subject = config["subject"]
+    message = config["message"]
+    directory_path = config["directory_path"]
+
+    email_service = GmailService(sender_email, sender_password)
+
+    send_epub_emails_from_directory(directory_path, email_service, recipient_email, subject, message)
