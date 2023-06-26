@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  app:
+    build:
+      context: .
+    volumes:
+      - ./config_files:/app/config_files
+      - /path/to/book/files:/app/books
+    environment:
+      - SMTP_SERVER=smtp.gmail.com
+      - SMTP_PORT=587
+      - SENDER_EMAIL=your-email@gmail.com
+      - SENDER_PASSWORD=your-email-password
+      - RECIPIENT_EMAIL=recipient-email@example.com
+      - SUBJECT=Subject (optional)
+      - MESSAGE=Message (optional)
+      - ALLOWED_EXTENSIONS=epub,pdf,mobi

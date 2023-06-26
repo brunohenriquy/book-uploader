@@ -1,0 +1,2 @@
+colorama
+pydevd_pycharm

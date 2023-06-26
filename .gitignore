@@ -1,0 +1,7 @@
+config.json
+sent_books.txt
+failed_books.txt
+
+.idea/
+
+.DS_Store
