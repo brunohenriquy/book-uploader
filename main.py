@@ -2,15 +2,16 @@ import json
 import os
 import smtplib
 import time
-from abc import ABC
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 
-class EmailService(ABC):
-    def __init__(self, sender_email, sender_password):
+class EmailService:
+    def __init__(self, smtp_server, smtp_port, sender_email, sender_password):
+        self.smtp_server = smtp_server
+        self.smtp_port = smtp_port
         self.sender_email = sender_email
         self.sender_password = sender_password
 
@@ -21,10 +22,9 @@ class EmailService(ABC):
                 server.login(self.sender_email, self.sender_password)
                 server.sendmail(self.sender_email, recipient_email, email_content)
 
-            return True
         except Exception as e:
             print(f"Error sending email: {str(e)}")
-            return False
+            raise e
 
     def prepare_email_with_attachment(self, recipient_email, subject, message, attachment_path):
         msg = MIMEMultipart()
@@ -52,13 +52,6 @@ class EmailService(ABC):
         return email_content
 
 
-class GmailService(EmailService):
-    def __init__(self, sender_email, sender_password):
-        super().__init__(sender_email, sender_password)
-        self.smtp_server = "smtp.gmail.com"
-        self.smtp_port = 587
-
-
 class ConfigManager:
     CONFIG_FILES_DIR = "config_files"
     CONFIG_FILE = f"{CONFIG_FILES_DIR}/config.json"
@@ -77,78 +70,48 @@ class ConfigManager:
         return config
 
     @staticmethod
-    def read_sent_files():
-        sent_files = set()
+    def read_file(file_path):
+        file_set = set()
 
-        if os.path.isfile(ConfigManager.SENT_FILES_FILE):
-            with open(ConfigManager.SENT_FILES_FILE, "r") as file:
+        if os.path.isfile(file_path):
+            with open(file_path, "r") as file:
                 for line in file:
-                    sent_files.add(line.strip())
+                    file_set.add(line.strip())
 
-        return sent_files
+        return file_set
+
+    @staticmethod
+    def save_file(file_path, file_name):
+        with open(file_path, "a") as file:
+            file.write(file_name + "\n")
+
+    @staticmethod
+    def read_sent_files():
+        return ConfigManager.read_file(ConfigManager.SENT_FILES_FILE)
 
     @staticmethod
     def read_failed_files():
-        failed_files = set()
-
-        if os.path.isfile(ConfigManager.FAILED_FILES_FILE):
-            with open(ConfigManager.FAILED_FILES_FILE, "r") as file:
-                for line in file:
-                    failed_files.add(line.strip())
-
-        return failed_files
+        return ConfigManager.read_file(ConfigManager.FAILED_FILES_FILE)
 
     @staticmethod
     def save_sent_file(file_name):
-        with open(ConfigManager.SENT_FILES_FILE, "a") as file:
-            file.write(file_name + "\n")
+        ConfigManager.save_file(ConfigManager.SENT_FILES_FILE, file_name)
 
     @staticmethod
     def save_failed_file(file_name):
-        with open(ConfigManager.FAILED_FILES_FILE, "a") as file:
-            file.write(file_name + "\n")
+        ConfigManager.save_file(ConfigManager.FAILED_FILES_FILE, file_name)
+
+def print_statistics(failed_files_count, sent_files_count, skipped_files_count):
+    print(f"Emails sent: {sent_files_count}")
+    print(f"Files skipped: {skipped_files_count}")
+    print(f"Files failed: {failed_files_count}")
 
 
-def send_epub_emails_from_directory(directory_path, email_service, recipient_email, subject, message):
-    sent_files = ConfigManager.read_sent_files()
-    failed_files = ConfigManager.read_failed_files()
-    skipped_files = 0
-
-    file_list = sorted(os.listdir(directory_path))
-    total_files = len(file_list)
-    files_sent = 0
-
-    for file_name in file_list:
-        file_path = os.path.join(directory_path, file_name)
-
-        if os.path.isfile(file_path) and file_name.lower().endswith(".epub"):
-            if file_name in sent_files:
-                print(f"File '{file_name}' has already been sent. Skipping...")
-                skipped_files += 1
-            elif file_name in failed_files:
-                print(f"File '{file_name}' has previously failed to send. Skipping...")
-                skipped_files += 1
-            else:
-                print(f"Sending book: {file_name}")
-                email_content = email_service.prepare_email_with_attachment(recipient_email, subject, message,
-                                                                            file_path)
-                if email_service.send_email(recipient_email, email_content):
-                    ConfigManager.save_sent_file(file_name)
-                    time.sleep(20)
-                    files_sent += 1
-                    progress = (files_sent + skipped_files) / total_files * 100
-                    print(f"Progress: {progress:.2f}%")
-                else:
-                    ConfigManager.save_failed_file(file_name)
-
-    print(f"Emails sent: {files_sent}")
-    print(f"Files skipped: {skipped_files}")
-    print(f"Files failed: {len(failed_files)}")
-
-
-if __name__ == '__main__':
+def send_epub_emails_from_directory():
     config = ConfigManager.read_config()
 
+    smtp_server = config["smtp_server"]
+    smtp_port = config["smtp_port"]
     sender_email = config["sender_email"]
     sender_password = config["sender_password"]
     recipient_email = config["recipient_email"]
@@ -156,6 +119,47 @@ if __name__ == '__main__':
     message = config["message"]
     directory_path = config["directory_path"]
 
-    email_service = GmailService(sender_email, sender_password)
+    sent_files = ConfigManager.read_sent_files()
+    failed_files = ConfigManager.read_failed_files()
 
-    send_epub_emails_from_directory(directory_path, email_service, recipient_email, subject, message)
+    file_list = sorted(os.listdir(directory_path))
+    total_files = len(file_list)
+
+    sent_files_count = 0
+    skipped_files_count = 0
+    failed_files_count = 0
+
+    email_service = EmailService(smtp_server, smtp_port, sender_email, sender_password)
+
+    for file_name in file_list:
+        file_path = os.path.join(directory_path, file_name)
+
+        if os.path.isfile(file_path) and file_name.lower().endswith(".epub"):
+            if file_name in sent_files:
+                print(f"File '{file_name}' has already been sent. Skipping...")
+                skipped_files_count += 1
+            elif file_name in failed_files:
+                print(f"File '{file_name}' has previously failed to send. Skipping...")
+                skipped_files_count += 1
+            else:
+                print(f"Sending book: {file_name}")
+                email_content = email_service.prepare_email_with_attachment(recipient_email, subject, message, file_path)
+
+                try:
+                    email_service.send_email(recipient_email, email_content)
+                    ConfigManager.save_sent_file(file_name)
+                    sent_files_count += 1
+                    processed_files_count = sent_files_count + skipped_files_count + failed_files_count
+                    progress = processed_files_count / total_files * 100
+                    print(f"Progress: {progress:.2f}%")
+                except Exception as e:
+                    ConfigManager.save_failed_file(file_name)
+                    failed_files_count += 1
+
+                time.sleep(20)
+
+    print_statistics(failed_files_count, sent_files_count, skipped_files_count)
+
+
+if __name__ == '__main__':
+    send_epub_emails_from_directory()
