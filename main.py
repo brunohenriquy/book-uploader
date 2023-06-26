@@ -9,7 +9,7 @@ from email import encoders
 SENT_FILES_FILE = "sent_files.txt"
 FAILED_FILES_FILE = "failed_files.txt"
 
-def send_email_with_attachment(sender_email, sender_password, recipient_email, subject, message, attachment_path):
+def prepare_email_with_attachment(sender_email, recipient_email, subject, message, attachment_path):
     msg = MIMEMultipart()
     msg["From"] = sender_email
     msg["To"] = recipient_email
@@ -29,8 +29,10 @@ def send_email_with_attachment(sender_email, sender_password, recipient_email, s
     )
 
     msg.attach(attachment_data)
-    email_content = msg.as_string()
 
+    return msg.as_string()
+
+def send_email_with_attachment(sender_email, sender_password, email_content, recipient_email):
     try:
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls()
@@ -39,7 +41,7 @@ def send_email_with_attachment(sender_email, sender_password, recipient_email, s
 
         return True
     except Exception as e:
-        print(f"Error sending email for file '{attachment_path}': {str(e)}")
+        print(f"Error sending email: {str(e)}")
         return False
 
 def read_sent_files():
@@ -91,7 +93,8 @@ def send_epub_emails_from_directory(directory_path, sender_email, sender_passwor
                 skipped_files += 1
             else:
                 print(f"Sending book: {file_name}")
-                if send_email_with_attachment(sender_email, sender_password, recipient_email, subject, message, file_path):
+                email_content = prepare_email_with_attachment(sender_email, recipient_email, subject, message, file_path)
+                if send_email_with_attachment(sender_email, sender_password, email_content, recipient_email):
                     save_sent_file(file_name)
                     time.sleep(20)
                     files_sent += 1
