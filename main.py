@@ -37,27 +37,44 @@ def send_email_with_attachment(sender_email, sender_password, recipient_email, s
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, recipient_email, email_content)
 
-        with open(SENT_FILES_FILE, "a") as file:
-            file.write(os.path.basename(attachment_path) + "\n")
+        return True
     except Exception as e:
         print(f"Error sending email for file '{attachment_path}': {str(e)}")
-        with open(FAILED_FILES_FILE, "a") as file:
-            file.write(os.path.basename(attachment_path) + "\n")
+        return False
 
-def send_epub_emails_from_directory(directory_path, sender_email, sender_password, recipient_email, subject, message):
+def read_sent_files():
     sent_files = set()
-    failed_files = set()
-    skipped_files = 0
 
     if os.path.isfile(SENT_FILES_FILE):
         with open(SENT_FILES_FILE, "r") as file:
             for line in file:
                 sent_files.add(line.strip())
 
+    return sent_files
+
+def read_failed_files():
+    failed_files = set()
+
     if os.path.isfile(FAILED_FILES_FILE):
         with open(FAILED_FILES_FILE, "r") as file:
             for line in file:
                 failed_files.add(line.strip())
+
+    return failed_files
+
+def save_sent_files(sent_files):
+    with open(SENT_FILES_FILE, "w") as file:
+        for file_name in sent_files:
+            file.write(file_name + "\n")
+
+def save_failed_file(file_name):
+    with open(FAILED_FILES_FILE, "a") as file:
+        file.write(file_name + "\n")
+
+def send_epub_emails_from_directory(directory_path, sender_email, sender_password, recipient_email, subject, message):
+    sent_files = read_sent_files()
+    failed_files = read_failed_files()
+    skipped_files = 0
 
     file_list = sorted(os.listdir(directory_path))
     total_files = len(file_list)
@@ -75,28 +92,27 @@ def send_epub_emails_from_directory(directory_path, sender_email, sender_passwor
                 skipped_files += 1
             else:
                 print(f"Sending book: {file_name}")
-                send_email_with_attachment(sender_email, sender_password, recipient_email, subject, message, file_path)
-                sent_files.add(file_name)
-                time.sleep(20)
-                files_sent += 1
-                progress = (files_sent + skipped_files) / total_files * 100
-                print(f"Progress: {progress:.2f}%")
+                if send_email_with_attachment(sender_email, sender_password, recipient_email, subject, message, file_path):
+                    sent_files.add(file_name)
+                    time.sleep(20)
+                    files_sent += 1
+                    progress = (files_sent + skipped_files) / total_files * 100
+                    print(f"Progress: {progress:.2f}%")
+                else:
+                    save_failed_file(file_name)
 
-    with open(SENT_FILES_FILE, "w") as file:
-        for file_name in sent_files:
-            file.write(file_name + "\n")
+    save_sent_files(sent_files)
 
     print(f"Emails sent: {files_sent}")
     print(f"Files skipped: {skipped_files}")
     print(f"Files failed: {len(failed_files)}")
 
-
 if __name__ == '__main__':
-    sender_email = ""
-    sender_password = ""
-    recipient_email = ""
-    subject = ""
-    message = ""
-    directory_path = ""
+    sender_email = "your_email@gmail.com"
+    sender_password = "your_password"
+    recipient_email = "recipient_email@gmail.com"
+    subject = "Email with EPUB Attachment"
+    message = "Hello, please find the EPUB attachment."
+    directory_path = "/path/to/directory"
 
     send_epub_emails_from_directory(directory_path, sender_email, sender_password, recipient_email, subject, message)
