@@ -1,9 +1,12 @@
 # Book Uploader
 
-The Book Uploader is a Python script that allows you to send Book files via email. This script provides two options for running the code: using a local Python installation or using Docker.
+The Book Uploader is a Python script that automates the process of sending Book files to a specified recipient(`Kindle` service for example) via email.
 
-It automates the process of sending Book files to a specified recipient(`Kindle` service for example) via email. It reads the configuration from either a `config.json` file or environment variables, depending on the chosen method of execution.
-The script supports sending multiple Book files in a directory, skipping files that have already been sent, and keeping track of failed attempts.
+This script provides two options for running the code: using a local Python installation or using Docker.
+
+It reads the configuration from either a `config.json` file or environment variables, depending on the chosen method of execution.
+
+It supports sending multiple Book files in a directory, skipping files that have already been sent, and keeping track of failed attempts.
 
 ## Prerequisites
 
