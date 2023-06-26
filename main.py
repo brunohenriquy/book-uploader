@@ -62,10 +62,9 @@ def read_failed_files():
 
     return failed_files
 
-def save_sent_files(sent_files):
-    with open(SENT_FILES_FILE, "w") as file:
-        for file_name in sent_files:
-            file.write(file_name + "\n")
+def save_sent_file(file_name):
+    with open(SENT_FILES_FILE, "a") as file:
+        file.write(file_name + "\n")
 
 def save_failed_file(file_name):
     with open(FAILED_FILES_FILE, "a") as file:
@@ -93,7 +92,7 @@ def send_epub_emails_from_directory(directory_path, sender_email, sender_passwor
             else:
                 print(f"Sending book: {file_name}")
                 if send_email_with_attachment(sender_email, sender_password, recipient_email, subject, message, file_path):
-                    sent_files.add(file_name)
+                    save_sent_file(file_name)
                     time.sleep(20)
                     files_sent += 1
                     progress = (files_sent + skipped_files) / total_files * 100
@@ -101,11 +100,10 @@ def send_epub_emails_from_directory(directory_path, sender_email, sender_passwor
                 else:
                     save_failed_file(file_name)
 
-    save_sent_files(sent_files)
-
     print(f"Emails sent: {files_sent}")
     print(f"Files skipped: {skipped_files}")
     print(f"Files failed: {len(failed_files)}")
+
 
 if __name__ == '__main__':
     sender_email = "your_email@gmail.com"
