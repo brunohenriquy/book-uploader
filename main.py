@@ -8,11 +8,6 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-CONFIG_FILES_DIR = "config_files"
-SENT_FILES_FILE = f"{CONFIG_FILES_DIR}/sent_files.txt"
-FAILED_FILES_FILE = f"{CONFIG_FILES_DIR}/failed_files.txt"
-CONFIG_FILE = f"{CONFIG_FILES_DIR}/config.json"
-
 
 class EmailService(ABC):
     def __init__(self, sender_email, sender_password):
@@ -64,41 +59,59 @@ class GmailService(EmailService):
         self.smtp_port = 587
 
 
-def read_sent_files():
-    sent_files = set()
+class ConfigManager:
+    CONFIG_FILES_DIR = "config_files"
+    CONFIG_FILE = f"{CONFIG_FILES_DIR}/config.json"
+    SENT_FILES_FILE = f"{CONFIG_FILES_DIR}/sent_files.txt"
+    FAILED_FILES_FILE = f"{CONFIG_FILES_DIR}/failed_files.txt"
 
-    if os.path.isfile(SENT_FILES_FILE):
-        with open(SENT_FILES_FILE, "r") as file:
-            for line in file:
-                sent_files.add(line.strip())
+    @staticmethod
+    def read_config():
+        config_file_path = ConfigManager.CONFIG_FILE
+        if not os.path.isfile(config_file_path):
+            raise FileNotFoundError(f"Config file '{config_file_path}' not found.")
 
-    return sent_files
+        with open(config_file_path, "r") as config_file:
+            config = json.load(config_file)
 
+        return config
 
-def read_failed_files():
-    failed_files = set()
+    @staticmethod
+    def read_sent_files():
+        sent_files = set()
 
-    if os.path.isfile(FAILED_FILES_FILE):
-        with open(FAILED_FILES_FILE, "r") as file:
-            for line in file:
-                failed_files.add(line.strip())
+        if os.path.isfile(ConfigManager.SENT_FILES_FILE):
+            with open(ConfigManager.SENT_FILES_FILE, "r") as file:
+                for line in file:
+                    sent_files.add(line.strip())
 
-    return failed_files
+        return sent_files
 
+    @staticmethod
+    def read_failed_files():
+        failed_files = set()
 
-def save_sent_file(file_name):
-    with open(SENT_FILES_FILE, "a") as file:
-        file.write(file_name + "\n")
+        if os.path.isfile(ConfigManager.FAILED_FILES_FILE):
+            with open(ConfigManager.FAILED_FILES_FILE, "r") as file:
+                for line in file:
+                    failed_files.add(line.strip())
 
+        return failed_files
 
-def save_failed_file(file_name):
-    with open(FAILED_FILES_FILE, "a") as file:
-        file.write(file_name + "\n")
+    @staticmethod
+    def save_sent_file(file_name):
+        with open(ConfigManager.SENT_FILES_FILE, "a") as file:
+            file.write(file_name + "\n")
+
+    @staticmethod
+    def save_failed_file(file_name):
+        with open(ConfigManager.FAILED_FILES_FILE, "a") as file:
+            file.write(file_name + "\n")
 
 
 def send_epub_emails_from_directory(directory_path, email_service, recipient_email, subject, message):
-    sent_files = read_sent_files()
-    failed_files = read_failed_files()
+    sent_files = ConfigManager.read_sent_files()
+    failed_files = ConfigManager.read_failed_files()
     skipped_files = 0
 
     file_list = sorted(os.listdir(directory_path))
@@ -120,27 +133,21 @@ def send_epub_emails_from_directory(directory_path, email_service, recipient_ema
                 email_content = email_service.prepare_email_with_attachment(recipient_email, subject, message,
                                                                             file_path)
                 if email_service.send_email(recipient_email, email_content):
-                    save_sent_file(file_name)
+                    ConfigManager.save_sent_file(file_name)
                     time.sleep(20)
                     files_sent += 1
                     progress = (files_sent + skipped_files) / total_files * 100
                     print(f"Progress: {progress:.2f}%")
                 else:
-                    save_failed_file(file_name)
+                    ConfigManager.save_failed_file(file_name)
 
     print(f"Emails sent: {files_sent}")
     print(f"Files skipped: {skipped_files}")
     print(f"Files failed: {len(failed_files)}")
 
 
-def read_config():
-    with open(CONFIG_FILE, "r") as config_file:
-        config = json.load(config_file)
-    return config
-
-
 if __name__ == '__main__':
-    config = read_config()
+    config = ConfigManager.read_config()
 
     sender_email = config["sender_email"]
     sender_password = config["sender_password"]
